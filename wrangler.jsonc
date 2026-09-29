@@ -1,0 +1,6 @@
+{
+  "name": "isg-egitim-test",
+  "main": "cloudflare-worker.js",
+  "compatibility_date": "2025-09-01",
+  "workers_dev": true
+}
