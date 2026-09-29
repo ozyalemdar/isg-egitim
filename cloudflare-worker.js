@@ -1,11 +1,258 @@
 // Cloudflare Worker: İSG test konsolunu tek bir adreste yayınlar.
-// Kullanım: Workers & Pages > Create application > Create Worker > Deploy, sonra "Edit code" ile
-// bu dosyanın TAMAMINI yapıştırıp Deploy edin. Adres: https://<worker-adı>.<hesap>.workers.dev
+// İçerik base64 olarak kısa satırlara bölünmüştür: kopyala-yapıştır sırasında araya
+// giren boşluk veya satır sonları zararsızdır (çözülürken yok sayılır).
 // Güvenlik: arama motorlarına kapalı, önbelleksiz; sayfa yalnızca bu Supabase test projesine bağlanabilir (CSP).
-const HTML = "<!doctype html>\n<html lang=\"tr\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>İSG Eğitim Sistemi – Test Konsolu</title>\n<style>\n  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mut:#667085; --line:#d9dee7; --ok:#0a7d3c; --bad:#b42318; --acc:#1f5eff; }\n  @media (prefers-color-scheme: dark) {\n    :root { --bg:#12161c; --card:#1b212a; --ink:#e8ecf2; --mut:#9aa6b6; --line:#2c3543; --ok:#4ade80; --bad:#f87171; --acc:#7aa2ff; }\n  }\n  * { box-sizing: border-box; }\n  body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, \"Segoe UI\", sans-serif; max-width:760px; margin-inline:auto; }\n  h1 { font-size:20px; margin:0 0 4px; }\n  h2 { font-size:16px; margin:0 0 8px; }\n  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin:12px 0; }\n  .warn { color:var(--bad); font-size:13px; }\n  .mut { color:var(--mut); font-size:13px; }\n  label { display:block; font-size:13px; color:var(--mut); margin:8px 0 2px; }\n  input, select { width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font:inherit; }\n  button { margin:10px 8px 0 0; padding:9px 14px; border:0; border-radius:8px; background:var(--acc); color:#fff; font:inherit; cursor:pointer; }\n  button.sec { background:transparent; color:var(--acc); border:1px solid var(--acc); }\n  .row { display:flex; gap:8px; } .row > div { flex:1; }\n  .secret { margin-top:10px; padding:10px; border:2px dashed var(--bad); border-radius:8px; font:600 17px ui-monospace, Menlo, monospace; word-break:break-all; }\n  .res { margin-top:10px; font-size:14px; }\n  .res div { padding:3px 0; } .pass { color:var(--ok); } .fail { color:var(--bad); }\n  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; max-height:320px; font-size:12px; white-space:pre-wrap; word-break:break-word; }\n</style>\n</head>\n<body>\n<h1>İSG Eğitim Sistemi – Test Konsolu</h1>\n<p class=\"warn\">Yalnızca TEST projesi içindir. service_role anahtarını asla buraya yapıştırmayın; aşağıdaki anahtar herkese açık (anon) anahtardır.</p>\n\n<div class=\"card\">\n  <h2>0. Bağlantı</h2>\n  <label>Proje adresi</label>\n  <input id=\"url\" value=\"https://ddjzohvyofupyyjinhlw.supabase.co\">\n  <label>Herkese açık (anon) anahtar</label>\n  <input id=\"key\" value=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkanpvaHZ5b2Z1cHl5amluaGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NjYzOTcsImV4cCI6MjEwNjI0MjM5N30.xFYVeJsdFLVyxFxToboG19Evp_Qu8vXnJKMayE6xBdA\">\n  <label>Çalışan giriş e-posta alan adı (fonksiyondaki LOGIN_EMAIL_DOMAIN ile aynı olmalı)</label>\n  <input id=\"domain\" value=\"giris.invalid\">\n  <button id=\"btnConnect\">Bağlan</button>\n</div>\n\n<div class=\"card\">\n  <h2>1. Yönetici girişi</h2>\n  <p class=\"mut\">Panelden açtığınız yönetici hesabının e-postası ve şifresi.</p>\n  <label>E-posta</label><input id=\"aEmail\" type=\"email\" autocomplete=\"username\">\n  <label>Şifre</label><input id=\"aPass\" type=\"password\" autocomplete=\"current-password\">\n  <button id=\"btnAdminLogin\">Yönetici olarak giriş yap</button>\n  <button id=\"btnAdminOut\" class=\"sec\">Çıkış</button>\n  <div class=\"res\" id=\"adminRes\"></div>\n</div>\n\n<div class=\"card\">\n  <h2>2. Çalışan hesabı aç (yönetici)</h2>\n  <div class=\"row\">\n    <div><label>Ad soyad</label><input id=\"cName\" value=\"Deneme Çalışan\"></div>\n    <div><label>Giriş kimliği (sicil no)</label><input id=\"cLogin\" value=\"deneme001\"></div>\n  </div>\n  <div class=\"row\">\n    <div><label>İşe giriş tarihi</label><input id=\"cHire\" type=\"date\"></
-div>\n    <div><label>Çalışan türü</label>\n      <select id=\"cType\"><option value=\"employee\">Çalışan</option><option value=\"apprentice\">Çırak</option><option value=\"intern\">Stajyer</option></select></div>\n  </div>\n  <button id=\"btnCreate\">Hesap aç</button>\n  <div id=\"secretBox\" class=\"secret\" style=\"display:none\"></div>\n  <p class=\"mut\" id=\"secretNote\" style=\"display:none\">Geçici şifre yalnızca bu yanıtta görünür ve bir daha gösterilemez.</p>\n</div>\n\n<div class=\"card\">\n  <h2>3. Çalışan olarak giriş (geçici şifreyle)</h2>\n  <div class=\"row\">\n    <div><label>Giriş kimliği</label><input id=\"wLogin\"></div>\n    <div><label>Geçici şifre</label><input id=\"wPass\" autocomplete=\"off\"></div>\n  </div>\n  <button id=\"btnWorkerLogin\">Çalışan olarak giriş yap</button>\n  <button id=\"btnCheck\" class=\"sec\">Ne görüyorum? (kilit testi)</button>\n  <button id=\"btnWorkerOut\" class=\"sec\">Çıkış</button>\n  <div class=\"res\" id=\"workerRes\"></div>\n</div>\n\n<div class=\"card\">\n  <h2>4. İlk şifre değişikliği (çalışan)</h2>\n  <label>Yeni şifre (en az 10 karakter, harf ve rakam)</label>\n  <input id=\"wNew\" type=\"password\" autocomplete=\"new-password\">\n  <button id=\"btnChange\">Şifreyi değiştir</button>\n  <div class=\"res\" id=\"changeRes\"></div>\n</div>\n\n<div class=\"card\">\n  <h2>5. Şifre sıfırlama (yönetici)</h2>\n  <p class=\"mut\">Çalışanın açık oturumu varken sıfırlayıp ardından \"Ne görüyorum?\" düğmesine basın: veri görünmemeli.</p>\n  <label>Çalışan kimliği (uuid)</label><input id=\"rId\">\n  <button id=\"btnReset\">Yeni geçici şifre üret</button>\n  <div id=\"resetBox\" class=\"secret\" style=\"display:none\"></div>\n</div>\n\n<div class=\"card\">\n  <h2>Kayıt</h2>\n  <pre id=\"log\">Henüz işlem yok.</pre>\n</div>\n\n<script src=\"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js\"></script>\n<script>\n  const $ = (id) => document.getElementById(id);\n  let admin = null, worker = null, lastEmployeeId = null;\n\n  $('cHire').value = new Date().toISOString().slice(0, 10);\n\n  function log(title, obj) {\n    const t = new Date().toLocaleTimeString('tr-TR');\n    const body = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);\n    $('log').textContent = '[' + t + '] ' + title + '\\n' + body + '\\n\\n' + ($('log').textContent === 'Henüz işlem yok.' ? '' : $('log').textContent);\n  }\n\n  function need(client, msg) {\n    if (!client) { alert(msg); return false; }\n    return true;\n  }\n\n  function show(elId, rows) {\n    $(elId).innerHTML = rows.map(function (r) {\n      return '<div class=\"' + (r.ok === null ? '' : (r.ok ? 'pass' : 'fail')) + '\">' +\n             (r.ok === null ? '' : (r.ok ? '✔ ' : '✘ ')) + r.text + '</div>';\n    }).join('');\n  }\n\n  async function callFn(client, name, body) {\n    const res = await client.functions.invoke(name, { body: body });\n    if (res.error) {\n      let detail = res.error.message;\n      try { detail = await res.error.context.json(); } catch (e) { /* yanıt gövdesi yok */ }\n      return { ok: false, detail: detail };\n    }\n    return { ok: true, data: res.data };\n  }\n\n  async function count(client, table) {\n    const r = await client.from(table).select('*', { count: 'exact', head: true });\n    return r.error ? { err: r.error.message } : { n: r.count };\n  }\n\n  $('btnConnect').onclick = function () {\n    const url = $('url').value.trim(), key = $('key').value.trim();\n    const opts = function (name) { return { auth: { persistSession: false, autoRefreshToken: true, storageKey: name } }; };\n    admin = supabase.createClient(url, key, opts('isg-admin'));\n    worker = supabase.createClient(url, key, opts('isg-worker'));\n    log('Bağlandı', url);\n  };\n\n  $('btnAdminLogin').onclick
- = async function () {\n    if (!need(admin, 'Önce \"Bağlan\" düğmesine basın.')) return;\n    const r = await admin.auth.signInWithPassword({ email: $('aEmail').value.trim(), password: $('aPass').value });\n    if (r.error) { show('adminRes', [{ ok: false, text: 'Giriş başarısız: ' + r.error.message }]); log('Yönetici girişi HATA', r.error.message); return; }\n    const me = await admin.from('employees').select('full_name, role, must_change_password').eq('id', r.data.user.id).maybeSingle();\n    const all = await count(admin, 'employees');\n    show('adminRes', [\n      { ok: true, text: 'Giriş yapıldı: ' + r.data.user.email },\n      { ok: me.data && me.data.role === 'admin' && me.data.must_change_password === false,\n        text: 'employees kaydı: ' + JSON.stringify(me.data || me.error) + ' (beklenen: role=admin, must_change_password=false)' },\n      { ok: null, text: 'Görünen çalışan sayısı: ' + JSON.stringify(all) }\n    ]);\n    log('Yönetici girişi', { user: r.data.user.email, employee: me.data });\n  };\n  $('btnAdminOut').onclick = async function () { if (admin) { await admin.auth.signOut(); show('adminRes', [{ ok: null, text: 'Çıkış yapıldı.' }]); } };\n\n  $('btnCreate').onclick = async function () {\n    if (!need(admin, 'Önce bağlanıp yönetici olarak giriş yapın.')) return;\n    const r = await callFn(admin, 'create-employee', {\n      full_name: $('cName').value.trim(),\n      login_id: $('cLogin').value.trim().toLowerCase(),\n      hire_date: $('cHire').value,\n      worker_type: $('cType').value\n    });\n    log('create-employee', r);\n    if (!r.ok) { $('secretBox').style.display = 'none'; $('secretNote').style.display = 'none'; alert('Hata: ' + JSON.stringify(r.detail)); return; }\n    lastEmployeeId = r.data.employee_id;\n    $('secretBox').style.display = 'block'; $('secretNote').style.display = 'block';\n    $('secretBox').textContent = 'Kimlik: ' + r.data.login_id + '   Geçici şifre: ' + r.data.temp_password;\n    $('wLogin').value = r.data.login_id; $('wPass').value = r.data.temp_password; $('rId').value = r.data.employee_id;\n  };\n\n  $('btnWorkerLogin').onclick = async function () {\n    if (!need(worker, 'Önce \"Bağlan\" düğmesine basın.')) return;\n    const email = $('wLogin').value.trim().toLowerCase() + '@' + $('domain').value.trim();\n    const r = await worker.auth.signInWithPassword({ email: email, password: $('wPass').value });\n    if (r.error) { show('workerRes', [{ ok: false, text: 'Giriş başarısız: ' + r.error.message }]); log('Çalışan girişi HATA', r.error.message); return; }\n    show('workerRes', [{ ok: true, text: 'Giriş yapıldı: ' + email }]);\n    log('Çalışan girişi', email);\n    $('btnCheck').click();\n  };\n  $('btnWorkerOut').onclick = async function () { if (worker) { await worker.auth.signOut(); show('workerRes', [{ ok: null, text: 'Çıkış yapıldı.' }]); } };\n\n  // Kilit testi: şifre değişmediyse hiçbir ortak veri görünmemeli; değiştiyse görünmeli.\n  $('btnCheck').onclick = async function () {\n    if (!need(worker, 'Önce çalışan olarak giriş yapın.')) return;\n    const s = await worker.auth.getSession();\n    if (!s.data.session) { show('workerRes', [{ ok: false, text: 'Açık oturum yok.' }]); return; }\n    const uid = s.data.session.user.id;\n    const me = await worker.from('employees').select('login_id, must_change_password').eq('id', uid).maybeSingle();\n    const locked = me.data ? me.data.must_change_password === true : null;\n    const topics = await count(worker, 'ek1_topics');\n    const settingsN = await count(worker, 'settings');\n    const emps = await count(worker, 'employees');\n    const rows = [\n      { ok: null, text: 'Durum: ' + (locked === null ? 'bilinmiyor' : (locked ? 'KİLİTLİ (şifre değiştirilmemiş)' : 'kilitsiz')) },\n      { ok: emps.n === 1, text
-: 'Görünen çalışan satırı: ' + JSON.stringify(emps) + ' (beklenen: 1, yalnız kendisi)' }\n    ];\n    if (locked) {\n      rows.push({ ok: topics.n === 0, text: 'ek1_topics satırı: ' + JSON.stringify(topics) + ' (kilitliyken beklenen: 0)' });\n      rows.push({ ok: settingsN.n === 0, text: 'settings satırı: ' + JSON.stringify(settingsN) + ' (kilitliyken beklenen: 0)' });\n    } else if (locked === false) {\n      rows.push({ ok: topics.n === 22, text: 'ek1_topics satırı: ' + JSON.stringify(topics) + ' (kilitsizken beklenen: 22)' });\n      rows.push({ ok: settingsN.n === 1, text: 'settings satırı: ' + JSON.stringify(settingsN) + ' (kilitsizken beklenen: 1)' });\n    }\n    show('workerRes', rows);\n    log('Kilit testi', { locked: locked, ek1_topics: topics, settings: settingsN, employees: emps });\n  };\n\n  $('btnChange').onclick = async function () {\n    if (!need(worker, 'Önce çalışan olarak giriş yapın.')) return;\n    const r = await callFn(worker, 'first-password-change', { current_password: $('wPass').value, new_password: $('wNew').value });\n    log('first-password-change', r);\n    if (!r.ok) { show('changeRes', [{ ok: false, text: 'Hata: ' + JSON.stringify(r.detail) }]); return; }\n    show('changeRes', [{ ok: true, text: 'Şifre değişti. Kilit kalkmış olmalı; \"Ne görüyorum?\" ile doğrulayın.' }]);\n    $('wPass').value = $('wNew').value;\n    $('btnCheck').click();\n  };\n\n  $('btnReset').onclick = async function () {\n    if (!need(admin, 'Önce yönetici olarak giriş yapın.')) return;\n    const r = await callFn(admin, 'reset-employee-password', { employee_id: $('rId').value.trim() });\n    log('reset-employee-password', r);\n    if (!r.ok) { alert('Hata: ' + JSON.stringify(r.detail)); return; }\n    $('resetBox').style.display = 'block';\n    $('resetBox').textContent = 'Yeni geçici şifre: ' + r.data.temp_password;\n    $('wPass').value = r.data.temp_password;\n  };\n</script>\n</body>\n</html>\n";
+const PAGE_B64 = `
+PCFkb2N0eXBlIGh0bWw+CjxodG1sIGxhbmc9InRyIj4KPGhlYWQ+CjxtZXRhIGNoYXJzZXQ9InV0
+Zi04Ij4KPG1ldGEgbmFtZT0idmlld3BvcnQiIGNvbnRlbnQ9IndpZHRoPWRldmljZS13aWR0aCwg
+aW5pdGlhbC1zY2FsZT0xIj4KPHRpdGxlPsSwU0cgRcSfaXRpbSBTaXN0ZW1pIOKAkyBUZXN0IEtv
+bnNvbHU8L3RpdGxlPgo8c3R5bGU+CiAgOnJvb3QgeyAtLWJnOiNmNmY3Zjk7IC0tY2FyZDojZmZm
+OyAtLWluazojMWMyNDMwOyAtLW11dDojNjY3MDg1OyAtLWxpbmU6I2Q5ZGVlNzsgLS1vazojMGE3
+ZDNjOyAtLWJhZDojYjQyMzE4OyAtLWFjYzojMWY1ZWZmOyB9CiAgQG1lZGlhIChwcmVmZXJzLWNv
+bG9yLXNjaGVtZTogZGFyaykgewogICAgOnJvb3QgeyAtLWJnOiMxMjE2MWM7IC0tY2FyZDojMWIy
+MTJhOyAtLWluazojZThlY2YyOyAtLW11dDojOWFhNmI2OyAtLWxpbmU6IzJjMzU0MzsgLS1vazoj
+NGFkZTgwOyAtLWJhZDojZjg3MTcxOyAtLWFjYzojN2FhMmZmOyB9CiAgfQogICogeyBib3gtc2l6
+aW5nOiBib3JkZXItYm94OyB9CiAgYm9keSB7IG1hcmdpbjowOyBwYWRkaW5nOjE2cHg7IGJhY2tn
+cm91bmQ6dmFyKC0tYmcpOyBjb2xvcjp2YXIoLS1pbmspOyBmb250OjE1cHgvMS40NSBzeXN0ZW0t
+dWksIC1hcHBsZS1zeXN0ZW0sICJTZWdvZSBVSSIsIHNhbnMtc2VyaWY7IG1heC13aWR0aDo3NjBw
+eDsgbWFyZ2luLWlubGluZTphdXRvOyB9CiAgaDEgeyBmb250LXNpemU6MjBweDsgbWFyZ2luOjAg
+MCA0cHg7IH0KICBoMiB7IGZvbnQtc2l6ZToxNnB4OyBtYXJnaW46MCAwIDhweDsgfQogIC5jYXJk
+IHsgYmFja2dyb3VuZDp2YXIoLS1jYXJkKTsgYm9yZGVyOjFweCBzb2xpZCB2YXIoLS1saW5lKTsg
+Ym9yZGVyLXJhZGl1czoxMnB4OyBwYWRkaW5nOjE0cHg7IG1hcmdpbjoxMnB4IDA7IH0KICAud2Fy
+biB7IGNvbG9yOnZhcigtLWJhZCk7IGZvbnQtc2l6ZToxM3B4OyB9CiAgLm11dCB7IGNvbG9yOnZh
+cigtLW11dCk7IGZvbnQtc2l6ZToxM3B4OyB9CiAgbGFiZWwgeyBkaXNwbGF5OmJsb2NrOyBmb250
+LXNpemU6MTNweDsgY29sb3I6dmFyKC0tbXV0KTsgbWFyZ2luOjhweCAwIDJweDsgfQogIGlucHV0
+LCBzZWxlY3QgeyB3aWR0aDoxMDAlOyBwYWRkaW5nOjlweCAxMHB4OyBib3JkZXI6MXB4IHNvbGlk
+IHZhcigtLWxpbmUpOyBib3JkZXItcmFkaXVzOjhweDsgYmFja2dyb3VuZDp0cmFuc3BhcmVudDsg
+Y29sb3I6dmFyKC0taW5rKTsgZm9udDppbmhlcml0OyB9CiAgYnV0dG9uIHsgbWFyZ2luOjEwcHgg
+OHB4IDAgMDsgcGFkZGluZzo5cHggMTRweDsgYm9yZGVyOjA7IGJvcmRlci1yYWRpdXM6OHB4OyBi
+YWNrZ3JvdW5kOnZhcigtLWFjYyk7IGNvbG9yOiNmZmY7IGZvbnQ6aW5oZXJpdDsgY3Vyc29yOnBv
+aW50ZXI7IH0KICBidXR0b24uc2VjIHsgYmFja2dyb3VuZDp0cmFuc3BhcmVudDsgY29sb3I6dmFy
+KC0tYWNjKTsgYm9yZGVyOjFweCBzb2xpZCB2YXIoLS1hY2MpOyB9CiAgLnJvdyB7IGRpc3BsYXk6
+ZmxleDsgZ2FwOjhweDsgfSAucm93ID4gZGl2IHsgZmxleDoxOyB9CiAgLnNlY3JldCB7IG1hcmdp
+bi10b3A6MTBweDsgcGFkZGluZzoxMHB4OyBib3JkZXI6MnB4IGRhc2hlZCB2YXIoLS1iYWQpOyBi
+b3JkZXItcmFkaXVzOjhweDsgZm9udDo2MDAgMTdweCB1aS1tb25vc3BhY2UsIE1lbmxvLCBtb25v
+c3BhY2U7IHdvcmQtYnJlYWs6YnJlYWstYWxsOyB9CiAgLnJlcyB7IG1hcmdpbi10b3A6MTBweDsg
+Zm9udC1zaXplOjE0cHg7IH0KICAucmVzIGRpdiB7IHBhZGRpbmc6M3B4IDA7IH0gLnBhc3MgeyBj
+b2xvcjp2YXIoLS1vayk7IH0gLmZhaWwgeyBjb2xvcjp2YXIoLS1iYWQpOyB9CiAgcHJlIHsgYmFj
+a2dyb3VuZDp2YXIoLS1iZyk7IGJvcmRlcjoxcHggc29saWQgdmFyKC0tbGluZSk7IGJvcmRlci1y
+YWRpdXM6OHB4OyBwYWRkaW5nOjEwcHg7IG92ZXJmbG93OmF1dG87IG1heC1oZWlnaHQ6MzIwcHg7
+IGZvbnQtc2l6ZToxMnB4OyB3aGl0ZS1zcGFjZTpwcmUtd3JhcDsgd29yZC1icmVhazpicmVhay13
+b3JkOyB9Cjwvc3R5bGU+CjwvaGVhZD4KPGJvZHk+CjxoMT7EsFNHIEXEn2l0aW0gU2lzdGVtaSDi
+gJMgVGVzdCBLb25zb2x1PC9oMT4KPHAgY2xhc3M9Indhcm4iPllhbG7EsXpjYSBURVNUIHByb2pl
+c2kgacOnaW5kaXIuIHNlcnZpY2Vfcm9sZSBhbmFodGFyxLFuxLEgYXNsYSBidXJheWEgeWFwxLHF
+n3TEsXJtYXnEsW47IGHFn2HEn8SxZGFraSBhbmFodGFyIGhlcmtlc2UgYcOnxLFrIChhbm9uKSBh
+bmFodGFyZMSxci48L3A+Cgo8ZGl2IGNsYXNzPSJjYXJkIj4KICA8aDI+MC4gQmHEn2xhbnTEsTwv
+aDI+CiAgPGxhYmVsPlByb2plIGFkcmVzaTwvbGFiZWw+CiAgPGlucHV0IGlkPSJ1cmwiIHZhbHVl
+PSJodHRwczovL2RkanpvaHZ5b2Z1cHl5amluaGx3LnN1cGFiYXNlLmNvIj4KICA8bGFiZWw+SGVy
+a2VzZSBhw6fEsWsgKGFub24pIGFuYWh0YXI8L2xhYmVsPgogIDxpbnB1dCBpZD0ia2V5IiB2YWx1
+ZT0iZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKemRYQmhZ
+bUZ6WlNJc0luSmxaaUk2SW1Sa2FucHZhSFo1YjJaMWNIbDVhbWx1YUd4M0lpd2ljbTlzWlNJNklt
+RnViMjRpTENKcFlYUWlPakUzT1RBMk5qWXpPVGNzSW1WNGNDSTZNakV3TmpJME1qTTVOMzAueEZZ
+VmVKc2RGTFZ5eEZ4VG9ib0cxOUV2cF9RdTh2WG5KS01heUU2eEJkQSI+CiAgPGxhYmVsPsOHYWzE
+scWfYW4gZ2lyacWfIGUtcG9zdGEgYWxhbiBhZMSxIChmb25rc2l5b25kYWtpIExPR0lOX0VNQUlM
+X0RPTUFJTiBpbGUgYXluxLEgb2xtYWzEsSk8L2xhYmVsPgogIDxpbnB1dCBpZD0iZG9tYWluIiB2
+YWx1ZT0iZ2lyaXMuaW52YWxpZCI+CiAgPGJ1dHRvbiBpZD0iYnRuQ29ubmVjdCI+QmHEn2xhbjwv
+YnV0dG9uPgo8L2Rpdj4KCjxkaXYgY2xhc3M9ImNhcmQiPgogIDxoMj4xLiBZw7ZuZXRpY2kgZ2ly
+acWfaTwvaDI+CiAgPHAgY2xhc3M9Im11dCI+UGFuZWxkZW4gYcOndMSxxJ/EsW7EsXogecO2bmV0
+aWNpIGhlc2FixLFuxLFuIGUtcG9zdGFzxLEgdmUgxZ9pZnJlc2kuPC9wPgogIDxsYWJlbD5FLXBv
+c3RhPC9sYWJlbD48aW5wdXQgaWQ9ImFFbWFpbCIgdHlwZT0iZW1haWwiIGF1dG9jb21wbGV0ZT0i
+dXNlcm5hbWUiPgogIDxsYWJlbD7FnmlmcmU8L2xhYmVsPjxpbnB1dCBpZD0iYVBhc3MiIHR5cGU9
+InBhc3N3b3JkIiBhdXRvY29tcGxldGU9ImN1cnJlbnQtcGFzc3dvcmQiPgogIDxidXR0b24gaWQ9
+ImJ0bkFkbWluTG9naW4iPlnDtm5ldGljaSBvbGFyYWsgZ2lyacWfIHlhcDwvYnV0dG9uPgogIDxi
+dXR0b24gaWQ9ImJ0bkFkbWluT3V0IiBjbGFzcz0ic2VjIj7Dh8Sxa8SxxZ88L2J1dHRvbj4KICA8
+ZGl2IGNsYXNzPSJyZXMiIGlkPSJhZG1pblJlcyI+PC9kaXY+CjwvZGl2PgoKPGRpdiBjbGFzcz0i
+Y2FyZCI+CiAgPGgyPjIuIMOHYWzEscWfYW4gaGVzYWLEsSBhw6cgKHnDtm5ldGljaSk8L2gyPgog
+IDxkaXYgY2xhc3M9InJvdyI+CiAgICA8ZGl2PjxsYWJlbD5BZCBzb3lhZDwvbGFiZWw+PGlucHV0
+IGlkPSJjTmFtZSIgdmFsdWU9IkRlbmVtZSDDh2FsxLHFn2FuIj48L2Rpdj4KICAgIDxkaXY+PGxh
+YmVsPkdpcmnFnyBraW1sacSfaSAoc2ljaWwgbm8pPC9sYWJlbD48aW5wdXQgaWQ9ImNMb2dpbiIg
+dmFsdWU9ImRlbmVtZTAwMSI+PC9kaXY+CiAgPC9kaXY+CiAgPGRpdiBjbGFzcz0icm93Ij4KICAg
+IDxkaXY+PGxhYmVsPsSwxZ9lIGdpcmnFnyB0YXJpaGk8L2xhYmVsPjxpbnB1dCBpZD0iY0hpcmUi
+IHR5cGU9ImRhdGUiPjwvZGl2PgogICAgPGRpdj48bGFiZWw+w4dhbMSxxZ9hbiB0w7xyw7w8L2xh
+YmVsPgogICAgICA8c2VsZWN0IGlkPSJjVHlwZSI+PG9wdGlvbiB2YWx1ZT0iZW1wbG95ZWUiPsOH
+YWzEscWfYW48L29wdGlvbj48b3B0aW9uIHZhbHVlPSJhcHByZW50aWNlIj7Dh8SxcmFrPC9vcHRp
+b24+PG9wdGlvbiB2YWx1ZT0iaW50ZXJuIj5TdGFqeWVyPC9vcHRpb24+PC9zZWxlY3Q+PC9kaXY+
+CiAgPC9kaXY+CiAgPGJ1dHRvbiBpZD0iYnRuQ3JlYXRlIj5IZXNhcCBhw6c8L2J1dHRvbj4KICA8
+ZGl2IGlkPSJzZWNyZXRCb3giIGNsYXNzPSJzZWNyZXQiIHN0eWxlPSJkaXNwbGF5Om5vbmUiPjwv
+ZGl2PgogIDxwIGNsYXNzPSJtdXQiIGlkPSJzZWNyZXROb3RlIiBzdHlsZT0iZGlzcGxheTpub25l
+Ij5HZcOnaWNpIMWfaWZyZSB5YWxuxLF6Y2EgYnUgeWFuxLF0dGEgZ8O2csO8bsO8ciB2ZSBiaXIg
+ZGFoYSBnw7ZzdGVyaWxlbWV6LjwvcD4KPC9kaXY+Cgo8ZGl2IGNsYXNzPSJjYXJkIj4KICA8aDI+
+My4gw4dhbMSxxZ9hbiBvbGFyYWsgZ2lyacWfIChnZcOnaWNpIMWfaWZyZXlsZSk8L2gyPgogIDxk
+aXYgY2xhc3M9InJvdyI+CiAgICA8ZGl2PjxsYWJlbD5HaXJpxZ8ga2ltbGnEn2k8L2xhYmVsPjxp
+bnB1dCBpZD0id0xvZ2luIj48L2Rpdj4KICAgIDxkaXY+PGxhYmVsPkdlw6dpY2kgxZ9pZnJlPC9s
+YWJlbD48aW5wdXQgaWQ9IndQYXNzIiBhdXRvY29tcGxldGU9Im9mZiI+PC9kaXY+CiAgPC9kaXY+
+CiAgPGJ1dHRvbiBpZD0iYnRuV29ya2VyTG9naW4iPsOHYWzEscWfYW4gb2xhcmFrIGdpcmnFnyB5
+YXA8L2J1dHRvbj4KICA8YnV0dG9uIGlkPSJidG5DaGVjayIgY2xhc3M9InNlYyI+TmUgZ8O2csO8
+eW9ydW0/IChraWxpdCB0ZXN0aSk8L2J1dHRvbj4KICA8YnV0dG9uIGlkPSJidG5Xb3JrZXJPdXQi
+IGNsYXNzPSJzZWMiPsOHxLFrxLHFnzwvYnV0dG9uPgogIDxkaXYgY2xhc3M9InJlcyIgaWQ9Indv
+cmtlclJlcyI+PC9kaXY+CjwvZGl2PgoKPGRpdiBjbGFzcz0iY2FyZCI+CiAgPGgyPjQuIMSwbGsg
+xZ9pZnJlIGRlxJ9pxZ9pa2xpxJ9pICjDp2FsxLHFn2FuKTwvaDI+CiAgPGxhYmVsPlllbmkgxZ9p
+ZnJlIChlbiBheiAxMCBrYXJha3RlciwgaGFyZiB2ZSByYWthbSk8L2xhYmVsPgogIDxpbnB1dCBp
+ZD0id05ldyIgdHlwZT0icGFzc3dvcmQiIGF1dG9jb21wbGV0ZT0ibmV3LXBhc3N3b3JkIj4KICA8
+YnV0dG9uIGlkPSJidG5DaGFuZ2UiPsWeaWZyZXlpIGRlxJ9pxZ90aXI8L2J1dHRvbj4KICA8ZGl2
+IGNsYXNzPSJyZXMiIGlkPSJjaGFuZ2VSZXMiPjwvZGl2Pgo8L2Rpdj4KCjxkaXYgY2xhc3M9ImNh
+cmQiPgogIDxoMj41LiDFnmlmcmUgc8SxZsSxcmxhbWEgKHnDtm5ldGljaSk8L2gyPgogIDxwIGNs
+YXNzPSJtdXQiPsOHYWzEscWfYW7EsW4gYcOnxLFrIG90dXJ1bXUgdmFya2VuIHPEsWbEsXJsYXnE
+sXAgYXJkxLFuZGFuICJOZSBnw7Zyw7x5b3J1bT8iIGTDvMSfbWVzaW5lIGJhc8SxbjogdmVyaSBn
+w7Zyw7xubWVtZWxpLjwvcD4KICA8bGFiZWw+w4dhbMSxxZ9hbiBraW1sacSfaSAodXVpZCk8L2xh
+YmVsPjxpbnB1dCBpZD0icklkIj4KICA8YnV0dG9uIGlkPSJidG5SZXNldCI+WWVuaSBnZcOnaWNp
+IMWfaWZyZSDDvHJldDwvYnV0dG9uPgogIDxkaXYgaWQ9InJlc2V0Qm94IiBjbGFzcz0ic2VjcmV0
+IiBzdHlsZT0iZGlzcGxheTpub25lIj48L2Rpdj4KPC9kaXY+Cgo8ZGl2IGNsYXNzPSJjYXJkIj4K
+ICA8aDI+S2F5xLF0PC9oMj4KICA8cHJlIGlkPSJsb2ciPkhlbsO8eiBpxZ9sZW0geW9rLjwvcHJl
+Pgo8L2Rpdj4KCjxzY3JpcHQgc3JjPSJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvbnBtL0BzdXBh
+YmFzZS9zdXBhYmFzZS1qc0AyLjQ1LjQvZGlzdC91bWQvc3VwYWJhc2UuanMiPjwvc2NyaXB0Pgo8
+c2NyaXB0PgogIGNvbnN0ICQgPSAoaWQpID0+IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKGlkKTsK
+ICBsZXQgYWRtaW4gPSBudWxsLCB3b3JrZXIgPSBudWxsLCBsYXN0RW1wbG95ZWVJZCA9IG51bGw7
+CgogICQoJ2NIaXJlJykudmFsdWUgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCkuc2xpY2UoMCwg
+MTApOwoKICBmdW5jdGlvbiBsb2codGl0bGUsIG9iaikgewogICAgY29uc3QgdCA9IG5ldyBEYXRl
+KCkudG9Mb2NhbGVUaW1lU3RyaW5nKCd0ci1UUicpOwogICAgY29uc3QgYm9keSA9IHR5cGVvZiBv
+YmogPT09ICdzdHJpbmcnID8gb2JqIDogSlNPTi5zdHJpbmdpZnkob2JqLCBudWxsLCAyKTsKICAg
+ICQoJ2xvZycpLnRleHRDb250ZW50ID0gJ1snICsgdCArICddICcgKyB0aXRsZSArICdcbicgKyBi
+b2R5ICsgJ1xuXG4nICsgKCQoJ2xvZycpLnRleHRDb250ZW50ID09PSAnSGVuw7x6IGnFn2xlbSB5
+b2suJyA/ICcnIDogJCgnbG9nJykudGV4dENvbnRlbnQpOwogIH0KCiAgZnVuY3Rpb24gbmVlZChj
+bGllbnQsIG1zZykgewogICAgaWYgKCFjbGllbnQpIHsgYWxlcnQobXNnKTsgcmV0dXJuIGZhbHNl
+OyB9CiAgICByZXR1cm4gdHJ1ZTsKICB9CgogIGZ1bmN0aW9uIHNob3coZWxJZCwgcm93cykgewog
+ICAgJChlbElkKS5pbm5lckhUTUwgPSByb3dzLm1hcChmdW5jdGlvbiAocikgewogICAgICByZXR1
+cm4gJzxkaXYgY2xhc3M9IicgKyAoci5vayA9PT0gbnVsbCA/ICcnIDogKHIub2sgPyAncGFzcycg
+OiAnZmFpbCcpKSArICciPicgKwogICAgICAgICAgICAgKHIub2sgPT09IG51bGwgPyAnJyA6IChy
+Lm9rID8gJ+KclCAnIDogJ+KcmCAnKSkgKyByLnRleHQgKyAnPC9kaXY+JzsKICAgIH0pLmpvaW4o
+JycpOwogIH0KCiAgYXN5bmMgZnVuY3Rpb24gY2FsbEZuKGNsaWVudCwgbmFtZSwgYm9keSkgewog
+ICAgY29uc3QgcmVzID0gYXdhaXQgY2xpZW50LmZ1bmN0aW9ucy5pbnZva2UobmFtZSwgeyBib2R5
+OiBib2R5IH0pOwogICAgaWYgKHJlcy5lcnJvcikgewogICAgICBsZXQgZGV0YWlsID0gcmVzLmVy
+cm9yLm1lc3NhZ2U7CiAgICAgIHRyeSB7IGRldGFpbCA9IGF3YWl0IHJlcy5lcnJvci5jb250ZXh0
+Lmpzb24oKTsgfSBjYXRjaCAoZSkgeyAvKiB5YW7EsXQgZ8O2dmRlc2kgeW9rICovIH0KICAgICAg
+cmV0dXJuIHsgb2s6IGZhbHNlLCBkZXRhaWw6IGRldGFpbCB9OwogICAgfQogICAgcmV0dXJuIHsg
+b2s6IHRydWUsIGRhdGE6IHJlcy5kYXRhIH07CiAgfQoKICBhc3luYyBmdW5jdGlvbiBjb3VudChj
+bGllbnQsIHRhYmxlKSB7CiAgICBjb25zdCByID0gYXdhaXQgY2xpZW50LmZyb20odGFibGUpLnNl
+bGVjdCgnKicsIHsgY291bnQ6ICdleGFjdCcsIGhlYWQ6IHRydWUgfSk7CiAgICByZXR1cm4gci5l
+cnJvciA/IHsgZXJyOiByLmVycm9yLm1lc3NhZ2UgfSA6IHsgbjogci5jb3VudCB9OwogIH0KCiAg
+JCgnYnRuQ29ubmVjdCcpLm9uY2xpY2sgPSBmdW5jdGlvbiAoKSB7CiAgICBjb25zdCB1cmwgPSAk
+KCd1cmwnKS52YWx1ZS50cmltKCksIGtleSA9ICQoJ2tleScpLnZhbHVlLnRyaW0oKTsKICAgIGNv
+bnN0IG9wdHMgPSBmdW5jdGlvbiAobmFtZSkgeyByZXR1cm4geyBhdXRoOiB7IHBlcnNpc3RTZXNz
+aW9uOiBmYWxzZSwgYXV0b1JlZnJlc2hUb2tlbjogdHJ1ZSwgc3RvcmFnZUtleTogbmFtZSB9IH07
+IH07CiAgICBhZG1pbiA9IHN1cGFiYXNlLmNyZWF0ZUNsaWVudCh1cmwsIGtleSwgb3B0cygnaXNn
+LWFkbWluJykpOwogICAgd29ya2VyID0gc3VwYWJhc2UuY3JlYXRlQ2xpZW50KHVybCwga2V5LCBv
+cHRzKCdpc2ctd29ya2VyJykpOwogICAgbG9nKCdCYcSfbGFuZMSxJywgdXJsKTsKICB9OwoKICAk
+KCdidG5BZG1pbkxvZ2luJykub25jbGljayA9IGFzeW5jIGZ1bmN0aW9uICgpIHsKICAgIGlmICgh
+bmVlZChhZG1pbiwgJ8OWbmNlICJCYcSfbGFuIiBkw7zEn21lc2luZSBiYXPEsW4uJykpIHJldHVy
+bjsKICAgIGNvbnN0IHIgPSBhd2FpdCBhZG1pbi5hdXRoLnNpZ25JbldpdGhQYXNzd29yZCh7IGVt
+YWlsOiAkKCdhRW1haWwnKS52YWx1ZS50cmltKCksIHBhc3N3b3JkOiAkKCdhUGFzcycpLnZhbHVl
+IH0pOwogICAgaWYgKHIuZXJyb3IpIHsgc2hvdygnYWRtaW5SZXMnLCBbeyBvazogZmFsc2UsIHRl
+eHQ6ICdHaXJpxZ8gYmHFn2FyxLFzxLF6OiAnICsgci5lcnJvci5tZXNzYWdlIH1dKTsgbG9nKCdZ
+w7ZuZXRpY2kgZ2lyacWfaSBIQVRBJywgci5lcnJvci5tZXNzYWdlKTsgcmV0dXJuOyB9CiAgICBj
+b25zdCBtZSA9IGF3YWl0IGFkbWluLmZyb20oJ2VtcGxveWVlcycpLnNlbGVjdCgnZnVsbF9uYW1l
+LCByb2xlLCBtdXN0X2NoYW5nZV9wYXNzd29yZCcpLmVxKCdpZCcsIHIuZGF0YS51c2VyLmlkKS5t
+YXliZVNpbmdsZSgpOwogICAgY29uc3QgYWxsID0gYXdhaXQgY291bnQoYWRtaW4sICdlbXBsb3ll
+ZXMnKTsKICAgIHNob3coJ2FkbWluUmVzJywgWwogICAgICB7IG9rOiB0cnVlLCB0ZXh0OiAnR2ly
+acWfIHlhcMSxbGTEsTogJyArIHIuZGF0YS51c2VyLmVtYWlsIH0sCiAgICAgIHsgb2s6IG1lLmRh
+dGEgJiYgbWUuZGF0YS5yb2xlID09PSAnYWRtaW4nICYmIG1lLmRhdGEubXVzdF9jaGFuZ2VfcGFz
+c3dvcmQgPT09IGZhbHNlLAogICAgICAgIHRleHQ6ICdlbXBsb3llZXMga2F5ZMSxOiAnICsgSlNP
+Ti5zdHJpbmdpZnkobWUuZGF0YSB8fCBtZS5lcnJvcikgKyAnIChiZWtsZW5lbjogcm9sZT1hZG1p
+biwgbXVzdF9jaGFuZ2VfcGFzc3dvcmQ9ZmFsc2UpJyB9LAogICAgICB7IG9rOiBudWxsLCB0ZXh0
+OiAnR8O2csO8bmVuIMOnYWzEscWfYW4gc2F5xLFzxLE6ICcgKyBKU09OLnN0cmluZ2lmeShhbGwp
+IH0KICAgIF0pOwogICAgbG9nKCdZw7ZuZXRpY2kgZ2lyacWfaScsIHsgdXNlcjogci5kYXRhLnVz
+ZXIuZW1haWwsIGVtcGxveWVlOiBtZS5kYXRhIH0pOwogIH07CiAgJCgnYnRuQWRtaW5PdXQnKS5v
+bmNsaWNrID0gYXN5bmMgZnVuY3Rpb24gKCkgeyBpZiAoYWRtaW4pIHsgYXdhaXQgYWRtaW4uYXV0
+aC5zaWduT3V0KCk7IHNob3coJ2FkbWluUmVzJywgW3sgb2s6IG51bGwsIHRleHQ6ICfDh8Sxa8Sx
+xZ8geWFwxLFsZMSxLicgfV0pOyB9IH07CgogICQoJ2J0bkNyZWF0ZScpLm9uY2xpY2sgPSBhc3lu
+YyBmdW5jdGlvbiAoKSB7CiAgICBpZiAoIW5lZWQoYWRtaW4sICfDlm5jZSBiYcSfbGFuxLFwIHnD
+tm5ldGljaSBvbGFyYWsgZ2lyacWfIHlhcMSxbi4nKSkgcmV0dXJuOwogICAgY29uc3QgciA9IGF3
+YWl0IGNhbGxGbihhZG1pbiwgJ2NyZWF0ZS1lbXBsb3llZScsIHsKICAgICAgZnVsbF9uYW1lOiAk
+KCdjTmFtZScpLnZhbHVlLnRyaW0oKSwKICAgICAgbG9naW5faWQ6ICQoJ2NMb2dpbicpLnZhbHVl
+LnRyaW0oKS50b0xvd2VyQ2FzZSgpLAogICAgICBoaXJlX2RhdGU6ICQoJ2NIaXJlJykudmFsdWUs
+CiAgICAgIHdvcmtlcl90eXBlOiAkKCdjVHlwZScpLnZhbHVlCiAgICB9KTsKICAgIGxvZygnY3Jl
+YXRlLWVtcGxveWVlJywgcik7CiAgICBpZiAoIXIub2spIHsgJCgnc2VjcmV0Qm94Jykuc3R5bGUu
+ZGlzcGxheSA9ICdub25lJzsgJCgnc2VjcmV0Tm90ZScpLnN0eWxlLmRpc3BsYXkgPSAnbm9uZSc7
+IGFsZXJ0KCdIYXRhOiAnICsgSlNPTi5zdHJpbmdpZnkoci5kZXRhaWwpKTsgcmV0dXJuOyB9CiAg
+ICBsYXN0RW1wbG95ZWVJZCA9IHIuZGF0YS5lbXBsb3llZV9pZDsKICAgICQoJ3NlY3JldEJveCcp
+LnN0eWxlLmRpc3BsYXkgPSAnYmxvY2snOyAkKCdzZWNyZXROb3RlJykuc3R5bGUuZGlzcGxheSA9
+ICdibG9jayc7CiAgICAkKCdzZWNyZXRCb3gnKS50ZXh0Q29udGVudCA9ICdLaW1saWs6ICcgKyBy
+LmRhdGEubG9naW5faWQgKyAnICAgR2XDp2ljaSDFn2lmcmU6ICcgKyByLmRhdGEudGVtcF9wYXNz
+d29yZDsKICAgICQoJ3dMb2dpbicpLnZhbHVlID0gci5kYXRhLmxvZ2luX2lkOyAkKCd3UGFzcycp
+LnZhbHVlID0gci5kYXRhLnRlbXBfcGFzc3dvcmQ7ICQoJ3JJZCcpLnZhbHVlID0gci5kYXRhLmVt
+cGxveWVlX2lkOwogIH07CgogICQoJ2J0bldvcmtlckxvZ2luJykub25jbGljayA9IGFzeW5jIGZ1
+bmN0aW9uICgpIHsKICAgIGlmICghbmVlZCh3b3JrZXIsICfDlm5jZSAiQmHEn2xhbiIgZMO8xJ9t
+ZXNpbmUgYmFzxLFuLicpKSByZXR1cm47CiAgICBjb25zdCBlbWFpbCA9ICQoJ3dMb2dpbicpLnZh
+bHVlLnRyaW0oKS50b0xvd2VyQ2FzZSgpICsgJ0AnICsgJCgnZG9tYWluJykudmFsdWUudHJpbSgp
+OwogICAgY29uc3QgciA9IGF3YWl0IHdvcmtlci5hdXRoLnNpZ25JbldpdGhQYXNzd29yZCh7IGVt
+YWlsOiBlbWFpbCwgcGFzc3dvcmQ6ICQoJ3dQYXNzJykudmFsdWUgfSk7CiAgICBpZiAoci5lcnJv
+cikgeyBzaG93KCd3b3JrZXJSZXMnLCBbeyBvazogZmFsc2UsIHRleHQ6ICdHaXJpxZ8gYmHFn2Fy
+xLFzxLF6OiAnICsgci5lcnJvci5tZXNzYWdlIH1dKTsgbG9nKCfDh2FsxLHFn2FuIGdpcmnFn2kg
+SEFUQScsIHIuZXJyb3IubWVzc2FnZSk7IHJldHVybjsgfQogICAgc2hvdygnd29ya2VyUmVzJywg
+W3sgb2s6IHRydWUsIHRleHQ6ICdHaXJpxZ8geWFwxLFsZMSxOiAnICsgZW1haWwgfV0pOwogICAg
+bG9nKCfDh2FsxLHFn2FuIGdpcmnFn2knLCBlbWFpbCk7CiAgICAkKCdidG5DaGVjaycpLmNsaWNr
+KCk7CiAgfTsKICAkKCdidG5Xb3JrZXJPdXQnKS5vbmNsaWNrID0gYXN5bmMgZnVuY3Rpb24gKCkg
+eyBpZiAod29ya2VyKSB7IGF3YWl0IHdvcmtlci5hdXRoLnNpZ25PdXQoKTsgc2hvdygnd29ya2Vy
+UmVzJywgW3sgb2s6IG51bGwsIHRleHQ6ICfDh8Sxa8SxxZ8geWFwxLFsZMSxLicgfV0pOyB9IH07
+CgogIC8vIEtpbGl0IHRlc3RpOiDFn2lmcmUgZGXEn2nFn21lZGl5c2UgaGnDp2JpciBvcnRhayB2
+ZXJpIGfDtnLDvG5tZW1lbGk7IGRlxJ9pxZ90aXlzZSBnw7Zyw7xubWVsaS4KICAkKCdidG5DaGVj
+aycpLm9uY2xpY2sgPSBhc3luYyBmdW5jdGlvbiAoKSB7CiAgICBpZiAoIW5lZWQod29ya2VyLCAn
+w5ZuY2Ugw6dhbMSxxZ9hbiBvbGFyYWsgZ2lyacWfIHlhcMSxbi4nKSkgcmV0dXJuOwogICAgY29u
+c3QgcyA9IGF3YWl0IHdvcmtlci5hdXRoLmdldFNlc3Npb24oKTsKICAgIGlmICghcy5kYXRhLnNl
+c3Npb24pIHsgc2hvdygnd29ya2VyUmVzJywgW3sgb2s6IGZhbHNlLCB0ZXh0OiAnQcOnxLFrIG90
+dXJ1bSB5b2suJyB9XSk7IHJldHVybjsgfQogICAgY29uc3QgdWlkID0gcy5kYXRhLnNlc3Npb24u
+dXNlci5pZDsKICAgIGNvbnN0IG1lID0gYXdhaXQgd29ya2VyLmZyb20oJ2VtcGxveWVlcycpLnNl
+bGVjdCgnbG9naW5faWQsIG11c3RfY2hhbmdlX3Bhc3N3b3JkJykuZXEoJ2lkJywgdWlkKS5tYXli
+ZVNpbmdsZSgpOwogICAgY29uc3QgbG9ja2VkID0gbWUuZGF0YSA/IG1lLmRhdGEubXVzdF9jaGFu
+Z2VfcGFzc3dvcmQgPT09IHRydWUgOiBudWxsOwogICAgY29uc3QgdG9waWNzID0gYXdhaXQgY291
+bnQod29ya2VyLCAnZWsxX3RvcGljcycpOwogICAgY29uc3Qgc2V0dGluZ3NOID0gYXdhaXQgY291
+bnQod29ya2VyLCAnc2V0dGluZ3MnKTsKICAgIGNvbnN0IGVtcHMgPSBhd2FpdCBjb3VudCh3b3Jr
+ZXIsICdlbXBsb3llZXMnKTsKICAgIGNvbnN0IHJvd3MgPSBbCiAgICAgIHsgb2s6IG51bGwsIHRl
+eHQ6ICdEdXJ1bTogJyArIChsb2NrZWQgPT09IG51bGwgPyAnYmlsaW5taXlvcicgOiAobG9ja2Vk
+ID8gJ0vEsEzEsFRMxLAgKMWfaWZyZSBkZcSfacWfdGlyaWxtZW1pxZ8pJyA6ICdraWxpdHNpeicp
+KSB9LAogICAgICB7IG9rOiBlbXBzLm4gPT09IDEsIHRleHQ6ICdHw7Zyw7xuZW4gw6dhbMSxxZ9h
+biBzYXTEsXLEsTogJyArIEpTT04uc3RyaW5naWZ5KGVtcHMpICsgJyAoYmVrbGVuZW46IDEsIHlh
+bG7EsXoga2VuZGlzaSknIH0KICAgIF07CiAgICBpZiAobG9ja2VkKSB7CiAgICAgIHJvd3MucHVz
+aCh7IG9rOiB0b3BpY3MubiA9PT0gMCwgdGV4dDogJ2VrMV90b3BpY3Mgc2F0xLFyxLE6ICcgKyBK
+U09OLnN0cmluZ2lmeSh0b3BpY3MpICsgJyAoa2lsaXRsaXlrZW4gYmVrbGVuZW46IDApJyB9KTsK
+ICAgICAgcm93cy5wdXNoKHsgb2s6IHNldHRpbmdzTi5uID09PSAwLCB0ZXh0OiAnc2V0dGluZ3Mg
+c2F0xLFyxLE6ICcgKyBKU09OLnN0cmluZ2lmeShzZXR0aW5nc04pICsgJyAoa2lsaXRsaXlrZW4g
+YmVrbGVuZW46IDApJyB9KTsKICAgIH0gZWxzZSBpZiAobG9ja2VkID09PSBmYWxzZSkgewogICAg
+ICByb3dzLnB1c2goeyBvazogdG9waWNzLm4gPT09IDIyLCB0ZXh0OiAnZWsxX3RvcGljcyBzYXTE
+sXLEsTogJyArIEpTT04uc3RyaW5naWZ5KHRvcGljcykgKyAnIChraWxpdHNpemtlbiBiZWtsZW5l
+bjogMjIpJyB9KTsKICAgICAgcm93cy5wdXNoKHsgb2s6IHNldHRpbmdzTi5uID09PSAxLCB0ZXh0
+OiAnc2V0dGluZ3Mgc2F0xLFyxLE6ICcgKyBKU09OLnN0cmluZ2lmeShzZXR0aW5nc04pICsgJyAo
+a2lsaXRzaXprZW4gYmVrbGVuZW46IDEpJyB9KTsKICAgIH0KICAgIHNob3coJ3dvcmtlclJlcycs
+IHJvd3MpOwogICAgbG9nKCdLaWxpdCB0ZXN0aScsIHsgbG9ja2VkOiBsb2NrZWQsIGVrMV90b3Bp
+Y3M6IHRvcGljcywgc2V0dGluZ3M6IHNldHRpbmdzTiwgZW1wbG95ZWVzOiBlbXBzIH0pOwogIH07
+CgogICQoJ2J0bkNoYW5nZScpLm9uY2xpY2sgPSBhc3luYyBmdW5jdGlvbiAoKSB7CiAgICBpZiAo
+IW5lZWQod29ya2VyLCAnw5ZuY2Ugw6dhbMSxxZ9hbiBvbGFyYWsgZ2lyacWfIHlhcMSxbi4nKSkg
+cmV0dXJuOwogICAgY29uc3QgciA9IGF3YWl0IGNhbGxGbih3b3JrZXIsICdmaXJzdC1wYXNzd29y
+ZC1jaGFuZ2UnLCB7IGN1cnJlbnRfcGFzc3dvcmQ6ICQoJ3dQYXNzJykudmFsdWUsIG5ld19wYXNz
+d29yZDogJCgnd05ldycpLnZhbHVlIH0pOwogICAgbG9nKCdmaXJzdC1wYXNzd29yZC1jaGFuZ2Un
+LCByKTsKICAgIGlmICghci5vaykgeyBzaG93KCdjaGFuZ2VSZXMnLCBbeyBvazogZmFsc2UsIHRl
+eHQ6ICdIYXRhOiAnICsgSlNPTi5zdHJpbmdpZnkoci5kZXRhaWwpIH1dKTsgcmV0dXJuOyB9CiAg
+ICBzaG93KCdjaGFuZ2VSZXMnLCBbeyBvazogdHJ1ZSwgdGV4dDogJ8WeaWZyZSBkZcSfacWfdGku
+IEtpbGl0IGthbGttxLHFnyBvbG1hbMSxOyAiTmUgZ8O2csO8eW9ydW0/IiBpbGUgZG/En3J1bGF5
+xLFuLicgfV0pOwogICAgJCgnd1Bhc3MnKS52YWx1ZSA9ICQoJ3dOZXcnKS52YWx1ZTsKICAgICQo
+J2J0bkNoZWNrJykuY2xpY2soKTsKICB9OwoKICAkKCdidG5SZXNldCcpLm9uY2xpY2sgPSBhc3lu
+YyBmdW5jdGlvbiAoKSB7CiAgICBpZiAoIW5lZWQoYWRtaW4sICfDlm5jZSB5w7ZuZXRpY2kgb2xh
+cmFrIGdpcmnFnyB5YXDEsW4uJykpIHJldHVybjsKICAgIGNvbnN0IHIgPSBhd2FpdCBjYWxsRm4o
+YWRtaW4sICdyZXNldC1lbXBsb3llZS1wYXNzd29yZCcsIHsgZW1wbG95ZWVfaWQ6ICQoJ3JJZCcp
+LnZhbHVlLnRyaW0oKSB9KTsKICAgIGxvZygncmVzZXQtZW1wbG95ZWUtcGFzc3dvcmQnLCByKTsK
+ICAgIGlmICghci5vaykgeyBhbGVydCgnSGF0YTogJyArIEpTT04uc3RyaW5naWZ5KHIuZGV0YWls
+KSk7IHJldHVybjsgfQogICAgJCgncmVzZXRCb3gnKS5zdHlsZS5kaXNwbGF5ID0gJ2Jsb2NrJzsK
+ICAgICQoJ3Jlc2V0Qm94JykudGV4dENvbnRlbnQgPSAnWWVuaSBnZcOnaWNpIMWfaWZyZTogJyAr
+IHIuZGF0YS50ZW1wX3Bhc3N3b3JkOwogICAgJCgnd1Bhc3MnKS52YWx1ZSA9IHIuZGF0YS50ZW1w
+X3Bhc3N3b3JkOwogIH07Cjwvc2NyaXB0Pgo8L2JvZHk+CjwvaHRtbD4K
+`;
+
+function decodePage() {
+  const bin = atob(PAGE_B64.replace(/\s+/g, ""));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+const HTML = decodePage();
+
+const CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'unsafe-inline'",
+  "connect-src https://ddjzohvyofupyyjinhlw.supabase.co",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
 
 export default {
   async fetch(request) {
@@ -23,7 +270,7 @@ export default {
         "X-Robots-Tag": "noindex, nofollow",
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer",
-        "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; connect-src https://ddjzohvyofupyyjinhlw.supabase.co; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "Content-Security-Policy": CSP,
       },
     });
   },
