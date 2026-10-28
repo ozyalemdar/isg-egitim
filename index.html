@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>İSG Eğitim Sistemi – Test Konsolu</title>
+<style>
+  :root {
+    --bg:#f0fdfa; --card:#ffffff; --ink:#134e4a; --mut:#475569; --line:#bfe3de;
+    --pri:#0f766e; --on-pri:#ffffff; --pri-soft:#ccfbf1;
+    --acc:#b45309; --acc-soft:#fef3c7;
+    --ok:#15803d; --ok-soft:#dcfce7; --bad:#b91c1c; --bad-soft:#fee2e2;
+    --ring:#0f766e; --radius:14px; --tap:44px;
+    --font: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0b1f1e; --card:#112b29; --ink:#e6f6f3; --mut:#9fbab6; --line:#24504c;
+      --pri:#2dd4bf; --on-pri:#032a27; --pri-soft:#134e4a;
+      --acc:#fbbf24; --acc-soft:#3b2a08;
+      --ok:#4ade80; --ok-soft:#0f3a22; --bad:#f87171; --bad-soft:#4a1515;
+      --ring:#5eead4;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; padding:0 16px 48px; background:var(--bg); color:var(--ink);
+    font:16px/1.5 var(--font); max-width:820px; margin-inline:auto;
+  }
+  header { padding:24px 0 8px; display:flex; gap:14px; align-items:center; }
+  .logo {
+    flex:none; width:48px; height:48px; border-radius:12px; background:var(--pri); color:var(--on-pri);
+    display:grid; place-items:center; font-weight:800; font-size:18px; letter-spacing:.5px;
+  }
+  h1 { font-size:22px; line-height:1.2; margin:0; }
+  .sub { margin:2px 0 0; color:var(--mut); font-size:14px; }
+  h2 { font-size:17px; margin:0 0 4px; display:flex; align-items:center; gap:10px; }
+  .step {
+    flex:none; min-width:28px; height:28px; padding:0 8px; border-radius:999px;
+    background:var(--pri-soft); color:var(--ink); border:1px solid var(--line);
+    display:inline-grid; place-items:center; font-size:14px; font-weight:700;
+  }
+  .banner {
+    margin:14px 0 4px; padding:12px 14px; border-radius:var(--radius);
+    background:var(--acc-soft); border:1px solid var(--acc); color:var(--ink); font-size:14px;
+    display:flex; gap:10px; align-items:flex-start;
+  }
+  .banner::before { content:"⚠"; color:var(--acc); font-weight:700; }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px; margin:14px 0;
+  }
+  .warn, .mut { color:var(--mut); font-size:14px; margin:4px 0 8px; }
+  label { display:block; font-size:14px; font-weight:600; color:var(--ink); margin:12px 0 4px; }
+  input, select {
+    width:100%; min-height:var(--tap); padding:10px 12px; border:1.5px solid var(--line);
+    border-radius:10px; background:var(--card); color:var(--ink); font:inherit;
+  }
+  input::placeholder { color:var(--mut); }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1 1 220px; }
+  button {
+    min-height:var(--tap); margin:14px 8px 0 0; padding:10px 18px; border:1.5px solid var(--pri);
+    border-radius:10px; background:var(--pri); color:var(--on-pri); font:inherit; font-weight:600; cursor:pointer;
+    transition:background-color .15s ease, transform .1s ease;
+  }
+  button:hover { filter:brightness(1.08); }
+  button:active { transform:translateY(1px); }
+  button.sec { background:transparent; color:var(--pri); }
+  button.sec:hover { background:var(--pri-soft); filter:none; }
+  :focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+  input:focus-visible, select:focus-visible { outline-offset:0; border-color:var(--ring); }
+  .secret {
+    margin-top:14px; padding:14px; border:2px dashed var(--bad); border-radius:10px; background:var(--bad-soft);
+    font:600 17px ui-monospace, Menlo, Consolas, monospace; word-break:break-all;
+  }
+  .res { margin-top:12px; font-size:15px; }
+  .res div { padding:8px 10px; margin:6px 0; border-radius:8px; border:1px solid var(--line); background:var(--bg); }
+  .pass { color:var(--ok); background:var(--ok-soft) !important; border-color:var(--ok) !important; font-weight:600; }
+  .fail { color:var(--bad); background:var(--bad-soft) !important; border-color:var(--bad) !important; font-weight:600; }
+  pre {
+    background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px;
+    overflow:auto; max-height:320px; font-size:13px; white-space:pre-wrap; word-break:break-word; margin:8px 0 0;
+  }
+  @media (max-width:520px) {
+    body { padding-inline:12px; }
+    button { width:100%; margin-right:0; }
+    .card { padding:14px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" aria-hidden="true">İSG</div>
+  <div>
+    <h1>İSG Eğitim Sistemi – Test Konsolu</h1>
+    <p class="sub">Uzaktan eğitim altyapısının oturum, hesap ve erişim kilidi testleri</p>
+  </div>
+</header>
+<p class="banner" role="note">Yalnızca TEST projesi içindir. service_role anahtarını asla buraya yapıştırmayın; aşağıdaki anahtar herkese açık (anon) anahtardır.</p>
+
+<main>
+<section class="card" aria-labelledby="h0">
+  <h2 id="h0"><span class="step">0</span> Bağlantı</h2>
+  <label for="url">Proje adresi</label>
+  <input id="url" value="https://ddjzohvyofupyyjinhlw.supabase.co">
+  <label for="key">Herkese açık (anon) anahtar</label>
+  <input id="key" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkanpvaHZ5b2Z1cHl5amluaGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2NjYzOTcsImV4cCI6MjEwNjI0MjM5N30.xFYVeJsdFLVyxFxToboG19Evp_Qu8vXnJKMayE6xBdA">
+  <label for="domain">Çalışan giriş e-posta alan adı (fonksiyondaki LOGIN_EMAIL_DOMAIN ile aynı olmalı)</label>
+  <input id="domain" value="giris.invalid">
+  <button id="btnConnect">Bağlan</button>
+</section>
+
+<section class="card" aria-labelledby="h1">
+  <h2 id="h1"><span class="step">1</span> Yönetici girişi</h2>
+  <p class="mut">Panelden açtığınız yönetici hesabının e-postası ve şifresi.</p>
+  <label for="aEmail">E-posta</label><input id="aEmail" type="email" autocomplete="username">
+  <label for="aPass">Şifre</label><input id="aPass" type="password" autocomplete="current-password">
+  <button id="btnAdminLogin">Yönetici olarak giriş yap</button>
+  <button id="btnAdminOut" class="sec">Çıkış</button>
+  <div class="res" id="adminRes" role="status" aria-live="polite"></div>
+</section>
+
+<section class="card" aria-labelledby="h2">
+  <h2 id="h2"><span class="step">2</span> Çalışan hesabı aç (yönetici)</h2>
+  <div class="row">
+    <div><label for="cName">Ad soyad</label><input id="cName" value="Deneme Çalışan"></div>
+    <div><label for="cLogin">Giriş kimliği (sicil no)</label><input id="cLogin" value="deneme001"></div>
+  </div>
+  <div class="row">
+    <div><label for="cHire">İşe giriş tarihi</label><input id="cHire" type="date"></div>
+    <div><label for="cType">Çalışan türü</label>
+      <select id="cType"><option value="employee">Çalışan</option><option value="apprentice">Çırak</option><option value="intern">Stajyer</option></select></div>
+  </div>
+  <button id="btnCreate">Hesap aç</button>
+  <div id="secretBox" class="secret" style="display:none" role="status"></div>
+  <p class="mut" id="secretNote" style="display:none">Geçici şifre yalnızca bu yanıtta görünür ve bir daha gösterilemez.</p>
+</section>
+
+<section class="card" aria-labelledby="h3">
+  <h2 id="h3"><span class="step">3</span> Çalışan olarak giriş (geçici şifreyle)</h2>
+  <div class="row">
+    <div><label for="wLogin">Giriş kimliği</label><input id="wLogin"></div>
+    <div><label for="wPass">Geçici şifre</label><input id="wPass" autocomplete="off"></div>
+  </div>
+  <button id="btnWorkerLogin">Çalışan olarak giriş yap</button>
+  <button id="btnCheck" class="sec">Ne görüyorum? (kilit testi)</button>
+  <button id="btnWorkerOut" class="sec">Çıkış</button>
+  <div class="res" id="workerRes" role="status" aria-live="polite"></div>
+</section>
+
+<section class="card" aria-labelledby="h4">
+  <h2 id="h4"><span class="step">4</span> İlk şifre değişikliği (çalışan)</h2>
+  <label for="wNew">Yeni şifre (en az 10 karakter, harf ve rakam)</label>
+  <input id="wNew" type="password" autocomplete="new-password">
+  <button id="btnChange">Şifreyi değiştir</button>
+  <div class="res" id="changeRes" role="status" aria-live="polite"></div>
+</section>
+
+<section class="card" aria-labelledby="h5">
+  <h2 id="h5"><span class="step">5</span> Şifre sıfırlama (yönetici)</h2>
+  <p class="mut">Çalışanın açık oturumu varken sıfırlayıp ardından "Ne görüyorum?" düğmesine basın: veri görünmemeli.</p>
+  <label for="rId">Çalışan kimliği (uuid)</label><input id="rId">
+  <button id="btnReset">Yeni geçici şifre üret</button>
+  <div id="resetBox" class="secret" style="display:none" role="status"></div>
+</section>
+
+<section class="card" aria-labelledby="h6">
+  <h2 id="h6">Kayıt</h2>
+  <pre id="log" aria-live="polite">Henüz işlem yok.</pre>
+</section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let admin = null, worker = null, lastEmployeeId = null;
+
+  $('cHire').value = new Date().toISOString().slice(0, 10);
+
+  function log(title, obj) {
+    const t = new Date().toLocaleTimeString('tr-TR');
+    const body = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+    $('log').textContent = '[' + t + '] ' + title + '\n' + body + '\n\n' + ($('log').textContent === 'Henüz işlem yok.' ? '' : $('log').textContent);
+  }
+
+  function need(client, msg) {
+    if (!client) { alert(msg); return false; }
+    return true;
+  }
+
+  function show(elId, rows) {
+    $(elId).innerHTML = rows.map(function (r) {
+      return '<div class="' + (r.ok === null ? '' : (r.ok ? 'pass' : 'fail')) + '">' +
+             (r.ok === null ? '' : (r.ok ? '✔ ' : '✘ ')) + r.text + '</div>';
+    }).join('');
+  }
+
+  async function callFn(client, name, body) {
+    const res = await client.functions.invoke(name, { body: body });
+    if (res.error) {
+      let detail = res.error.message;
+      try { detail = await res.error.context.json(); } catch (e) { /* yanıt gövdesi yok */ }
+      return { ok: false, detail: detail };
+    }
+    return { ok: true, data: res.data };
+  }
+
+  async function count(client, table) {
+    const r = await client.from(table).select('*', { count: 'exact', head: true });
+    return r.error ? { err: r.error.message } : { n: r.count };
+  }
+
+  $('btnConnect').onclick = function () {
+    const url = $('url').value.trim(), key = $('key').value.trim();
+    const opts = function (name) { return { auth: { persistSession: false, autoRefreshToken: true, storageKey: name } }; };
+    admin = supabase.createClient(url, key, opts('isg-admin'));
+    worker = supabase.createClient(url, key, opts('isg-worker'));
+    log('Bağlandı', url);
+  };
+
+  $('btnAdminLogin').onclick = async function () {
+    if (!need(admin, 'Önce "Bağlan" düğmesine basın.')) return;
+    const r = await admin.auth.signInWithPassword({ email: $('aEmail').value.trim(), password: $('aPass').value });
+    if (r.error) { show('adminRes', [{ ok: false, text: 'Giriş başarısız: ' + r.error.message }]); log('Yönetici girişi HATA', r.error.message); return; }
+    const me = await admin.from('employees').select('full_name, role, must_change_password').eq('id', r.data.user.id).maybeSingle();
+    const all = await count(admin, 'employees');
+    show('adminRes', [
+      { ok: true, text: 'Giriş yapıldı: ' + r.data.user.email },
+      { ok: me.data && me.data.role === 'admin' && me.data.must_change_password === false,
+        text: 'employees kaydı: ' + JSON.stringify(me.data || me.error) + ' (beklenen: role=admin, must_change_password=false)' },
+      { ok: null, text: 'Görünen çalışan sayısı: ' + JSON.stringify(all) }
+    ]);
+    log('Yönetici girişi', { user: r.data.user.email, employee: me.data });
+  };
+  $('btnAdminOut').onclick = async function () { if (admin) { await admin.auth.signOut(); show('adminRes', [{ ok: null, text: 'Çıkış yapıldı.' }]); } };
+
+  $('btnCreate').onclick = async function () {
+    if (!need(admin, 'Önce bağlanıp yönetici olarak giriş yapın.')) return;
+    const r = await callFn(admin, 'create-employee', {
+      full_name: $('cName').value.trim(),
+      login_id: $('cLogin').value.trim().toLowerCase(),
+      hire_date: $('cHire').value,
+      worker_type: $('cType').value
+    });
+    log('create-employee', r);
+    if (!r.ok) { $('secretBox').style.display = 'none'; $('secretNote').style.display = 'none'; alert('Hata: ' + JSON.stringify(r.detail)); return; }
+    lastEmployeeId = r.data.employee_id;
+    $('secretBox').style.display = 'block'; $('secretNote').style.display = 'block';
+    $('secretBox').textContent = 'Kimlik: ' + r.data.login_id + '   Geçici şifre: ' + r.data.temp_password;
+    $('wLogin').value = r.data.login_id; $('wPass').value = r.data.temp_password; $('rId').value = r.data.employee_id;
+  };
+
+  $('btnWorkerLogin').onclick = async function () {
+    if (!need(worker, 'Önce "Bağlan" düğmesine basın.')) return;
+    const email = $('wLogin').value.trim().toLowerCase() + '@' + $('domain').value.trim();
+    const r = await worker.auth.signInWithPassword({ email: email, password: $('wPass').value });
+    if (r.error) { show('workerRes', [{ ok: false, text: 'Giriş başarısız: ' + r.error.message }]); log('Çalışan girişi HATA', r.error.message); return; }
+    show('workerRes', [{ ok: true, text: 'Giriş yapıldı: ' + email }]);
+    log('Çalışan girişi', email);
+    $('btnCheck').click();
+  };
+  $('btnWorkerOut').onclick = async function () { if (worker) { await worker.auth.signOut(); show('workerRes', [{ ok: null, text: 'Çıkış yapıldı.' }]); } };
+
+  // Kilit testi: şifre değişmediyse hiçbir ortak veri görünmemeli; değiştiyse görünmeli.
+  $('btnCheck').onclick = async function () {
+    if (!need(worker, 'Önce çalışan olarak giriş yapın.')) return;
+    const s = await worker.auth.getSession();
+    if (!s.data.session) { show('workerRes', [{ ok: false, text: 'Açık oturum yok.' }]); return; }
+    const uid = s.data.session.user.id;
+    const me = await worker.from('employees').select('login_id, must_change_password').eq('id', uid).maybeSingle();
+    const locked = me.data ? me.data.must_change_password === true : null;
+    const topics = await count(worker, 'ek1_topics');
+    const settingsN = await count(worker, 'settings');
+    const emps = await count(worker, 'employees');
+    const rows = [
+      { ok: null, text: 'Durum: ' + (locked === null ? 'bilinmiyor' : (locked ? 'KİLİTLİ (şifre değiştirilmemiş)' : 'kilitsiz')) },
+      { ok: emps.n === 1, text: 'Görünen çalışan satırı: ' + JSON.stringify(emps) + ' (beklenen: 1, yalnız kendisi)' }
+    ];
+    if (locked) {
+      rows.push({ ok: topics.n === 0, text: 'ek1_topics satırı: ' + JSON.stringify(topics) + ' (kilitliyken beklenen: 0)' });
+      rows.push({ ok: settingsN.n === 0, text: 'settings satırı: ' + JSON.stringify(settingsN) + ' (kilitliyken beklenen: 0)' });
+    } else if (locked === false) {
+      rows.push({ ok: topics.n === 22, text: 'ek1_topics satırı: ' + JSON.stringify(topics) + ' (kilitsizken beklenen: 22)' });
+      rows.push({ ok: settingsN.n === 1, text: 'settings satırı: ' + JSON.stringify(settingsN) + ' (kilitsizken beklenen: 1)' });
+    }
+    show('workerRes', rows);
+    log('Kilit testi', { locked: locked, ek1_topics: topics, settings: settingsN, employees: emps });
+  };
+
+  $('btnChange').onclick = async function () {
+    if (!need(worker, 'Önce çalışan olarak giriş yapın.')) return;
+    const r = await callFn(worker, 'first-password-change', { current_password: $('wPass').value, new_password: $('wNew').value });
+    log('first-password-change', r);
+    if (!r.ok) { show('changeRes', [{ ok: false, text: 'Hata: ' + JSON.stringify(r.detail) }]); return; }
+    show('changeRes', [{ ok: true, text: 'Şifre değişti. Kilit kalkmış olmalı; "Ne görüyorum?" ile doğrulayın.' }]);
+    $('wPass').value = $('wNew').value;
+    $('btnCheck').click();
+  };
+
+  $('btnReset').onclick = async function () {
+    if (!need(admin, 'Önce yönetici olarak giriş yapın.')) return;
+    const r = await callFn(admin, 'reset-employee-password', { employee_id: $('rId').value.trim() });
+    log('reset-employee-password', r);
+    if (!r.ok) { alert('Hata: ' + JSON.stringify(r.detail)); return; }
+    $('resetBox').style.display = 'block';
+    $('resetBox').textContent = 'Yeni geçici şifre: ' + r.data.temp_password;
+    $('wPass').value = r.data.temp_password;
+  };
+</script>
+</body>
+</html>
